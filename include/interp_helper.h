@@ -646,6 +646,131 @@ struct InterpHelper {
     }
     return baseClassName;
   }
+
+  static k_string minify(const k_string& path, bool output = false) {
+    auto content = File::readFile(path);
+    if (content.empty()) {
+      return content;
+    }
+
+    std::ostringstream builder;
+    Lexer lexer(path, content);
+    auto stream = Lexer(path, content).getTokenStream();
+    bool addSpace = true;
+    while (stream->canRead()) {
+      auto token = stream->current();
+      switch (token.getType()) {
+        case KTokenType::COMMENT:
+          stream->next();
+          continue;
+        case KTokenType::KEYWORD:
+        case KTokenType::IDENTIFIER:
+        case KTokenType::CONDITIONAL:
+        case KTokenType::LITERAL:
+          if (addSpace) {
+            builder << ' ';
+          }
+          builder << token.getText();
+          addSpace = true;
+          break;
+        case KTokenType::STRING:
+          if (addSpace) {
+            builder << ' ';
+          }
+          builder << '"' << token.getText() << '"';
+          addSpace = true;
+          break;
+        default:
+          addSpace = false;
+          builder << token.getText();
+          break;
+      }
+
+      stream->next();
+    }
+
+    if (output) {
+      std::cout << String::trim(builder.str()) << std::endl;
+    }
+
+    return builder.str();
+  }
+
+  static void dumpState() {
+    std::cout << kiwi_arg << " v" << kiwi_version << " state dump" << std::endl;
+
+    std::cout << "streams: " << streamStack.size() << std::endl;
+    int counter = 0;
+    auto tempStreamStack(streamStack);
+    while (!tempStreamStack.empty()) {
+      std::cout << counter++
+                << " stream size: " << tempStreamStack.top()->tokens.size()
+                << std::endl;
+      tempStreamStack.pop();
+    }
+
+    std::cout << "frames: " << callStack.size() << std::endl;
+    counter = 0;
+    auto tempCallStack(callStack);
+    while (!tempCallStack.empty()) {
+      const auto& frame = tempCallStack.top();
+      const auto& frameVariables = frame->variables;
+      const auto& frameLambdas = frame->lambdas;
+      std::cout << counter << " frame variables: " << frameVariables.size()
+                << std::endl;
+      for (const auto& var : frameVariables) {
+        std::cout << "  name: " << var.first << std::endl;
+      }
+      std::cout << counter++ << " frame lambdas: " << frameLambdas.size()
+                << std::endl;
+      for (const auto& lambda : frameLambdas) {
+        std::cout << "  name: " << lambda.first
+                  << ", size: " << lambda.second.getCode().size() << std::endl;
+      }
+      tempCallStack.pop();
+    }
+
+    std::cout << "packages: " << packages.size() << std::endl;
+    counter = 0;
+    for (const auto& mod : packages) {
+      std::cout << counter++ << " name: " << mod.first
+                << ", size: " << mod.second.getCode().size() << std::endl;
+    }
+
+    std::cout << "classes: " << classes.size() << std::endl;
+    counter = 0;
+    for (const auto& clazz : classes) {
+      std::cout << counter << " name: " << clazz.first
+                << ", size: " << clazz.second.getMethods().size() << std::endl;
+      for (const auto& method : clazz.second.getMethods()) {
+        std::cout << counter << " class method name: " << method.first
+                  << ", size: " << method.second.getCode().size() << std::endl;
+      }
+      counter++;
+    }
+
+    std::cout << "methods: " << methods.size() << std::endl;
+    counter = 0;
+    for (const auto& method : methods) {
+      std::cout << counter++ << " name: " << method.first
+                << ", size: " << method.second.getCode().size() << std::endl;
+    }
+
+    std::cout << std::endl;
+  }
+
+  static void preloadCoreObjects(std::shared_ptr<CallStackFrame> mainFrame) {
+    const k_string null_classname = "Null";
+    Class null;
+    null.setClassName(null_classname);
+    Method ctor;
+    ctor.setName(Keywords.Ctor);
+    classes[null_classname] = null;
+
+    auto nullRef = std::make_shared<Object>();
+    nullRef->className = null_classname;
+    mainFrame->variables[Keywords.Null] = nullRef;
+  }
 };
 
 #endif

@@ -170,6 +170,7 @@ struct {
   const k_string Package = "package";
   const k_string New = "new";
   const k_string Next = "next";
+  const k_string Null = "null";
   const k_string Override = "override";
   const k_string Parse = "parse";
   const k_string Pass = "pass";
